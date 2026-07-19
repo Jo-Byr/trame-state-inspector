@@ -1,0 +1,41 @@
+<div
+  class="node"
+  :class="classFor(path)"
+>
+  <template v-if="isLeaf(node)">
+    {{name}}: {{ node.data }}
+  </template>
+
+  <template v-else>
+    <div
+      class="header"
+      @click="toggle(path)"
+    >
+      <span>
+        {{ open() ? "▼" : "▶" }}
+      </span>
+
+      <b>
+        {{name}} ({{ countLabel(node) }})
+      </b>
+    </div>
+
+    <div
+      v-if="open()"
+      class="children"
+    >
+      <DiffNode
+        v-for="([key,value]) in entries(node)"
+        :key="key"
+        :node="value"
+        :path="path ? path+'.'+key : key"
+        :depth="depth+1"
+        :expanded="expanded"
+        :toggle="toggle"
+        :is-expanded="isExpanded"
+        :class-for="classFor"
+        :name="key"
+      />
+    </div>
+  </template>
+</div>

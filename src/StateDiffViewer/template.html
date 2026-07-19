@@ -1,0 +1,23 @@
+<v-card class="diff-card">
+  <v-card-title>
+    State diff
+  </v-card-title>
+
+  <v-divider/>
+
+  <v-card-text class="scroll-area">
+    <div class="tree">
+      <DiffNode
+        v-if="diffTree"
+        :node="diffTree"
+        path=""
+        :depth="0"
+        :expanded="expanded"
+        :toggle="toggle"
+        :is-expanded="isExpanded"
+        :class-for="classFor"
+        :name="State"
+      />
+    </div>
+  </v-card-text>
+</v-card>

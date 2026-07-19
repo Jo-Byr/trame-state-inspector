@@ -1,0 +1,25 @@
+.node {
+  padding-left: calc(v-bind(depth) * 12px);
+}
+
+.header {
+  cursor:pointer;
+  user-select:none;
+}
+
+.children {
+  margin-left:12px;
+}
+
+.diff-created {
+  background-color: rgba(76, 175, 80, 0.15);
+}
+
+.diff-updated {
+  background-color: rgba(255, 193, 7, 0.15);
+}
+
+.diff-deleted {
+  background-color: rgba(244, 67, 54, 0.15);
+  text-decoration: line-through;
+}
