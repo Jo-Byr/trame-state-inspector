@@ -44,13 +44,21 @@ export default {
       return Object.entries(node);
     },
 
-    // Kept out of the template: `{${Object.keys(node).length}}` inside a
-    // mustache produces a `}}` sequence the compiler misreads as the
-    // mustache's own closing delimiter.
-    countLabel(node){
+    // Kept out of the template: a literal `{${...}}` inside a mustache
+    // produces a `}}` sequence the compiler misreads as its own closing
+    // delimiter.
+    previewLabel(node){
       return Array.isArray(node)
-        ? "[" + node.length + "]"
-        : "{" + Object.keys(node).length + "}";
+        ? "Array(" + node.length + ")"
+        : "Object(" + Object.keys(node).length + ")";
+    },
+
+    // Used to color-code the value column by type, the way browser
+    // consoles do (strings/numbers/booleans/null read faster that way).
+    leafType(node){
+      if (node === null) return "null";
+      if (node === undefined) return "undefined";
+      return typeof node;
     }
   }
 };

@@ -4,7 +4,7 @@
 // is why it's split into inject.js (MAIN world) + content.js (ISOLATED world).
 (function () {
   const DISCOVER_INTERVAL_MS = 1000;
-  const FLUSH_INTERVAL_MS = 250;
+  const FLUSH_INTERVAL_MS = 500;
   const SOURCE = "trame-state-inspector";
 
   let found = false;

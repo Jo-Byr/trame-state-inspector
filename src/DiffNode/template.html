@@ -2,43 +2,41 @@
   class="node"
   :class="classFor(path)"
 >
-  <template v-if="isLeaf(node)">
-    <b>{{ label() }}:</b> {{ leafLabel(node) }}
-  </template>
+  <div
+    class="row"
+    :class="{ clickable: !isLeaf(node) }"
+    @click="!isLeaf(node) && toggle(path)"
+  >
+    <span class="arrow">
+      {{ isLeaf(node) ? "" : (open() ? "▼" : "▶") }}
+    </span>
 
-  <template v-else>
-    <div
-      class="header"
-      @click="toggle(path)"
+    <span class="col-name">
+      {{ label() }}
+    </span>
+
+    <span
+      class="col-value"
+      :class="isLeaf(node) ? 'type-' + leafType(node) : 'preview'"
     >
-      <span>
-        {{ open() ? "▼" : "▶" }}
-      </span>
+      {{ isLeaf(node) ? leafLabel(node) : previewLabel(node) }}
+    </span>
+  </div>
 
-      <b>
-        {{ label() }}
-      </b>
-
-      <span class="count">
-        {{ countLabel(node) }}
-      </span>
-    </div>
-
-    <div
-      v-if="open()"
-      class="children"
-    >
-      <DiffNode
-        v-for="([key,value]) in entries(node)"
-        :key="key"
-        :node="value"
-        :path="path ? path+'.'+key : key"
-        :depth="depth+1"
-        :expanded="expanded"
-        :toggle="toggle"
-        :is-expanded="isExpanded"
-        :class-for="classFor"
-      />
-    </div>
-  </template>
+  <div
+    v-if="!isLeaf(node) && open()"
+    class="children"
+  >
+    <DiffNode
+      v-for="([key,value]) in entries(node)"
+      :key="key"
+      :node="value"
+      :path="path ? path+'.'+key : key"
+      :depth="depth+1"
+      :expanded="expanded"
+      :toggle="toggle"
+      :is-expanded="isExpanded"
+      :class-for="classFor"
+    />
+  </div>
 </div>

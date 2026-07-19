@@ -2,14 +2,60 @@
   padding-left: calc(v-bind(depth) * 12px);
 }
 
-.header {
-  cursor:pointer;
-  user-select:none;
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 2px 4px;
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 12px;
 }
 
-.count {
+.row.clickable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.arrow {
+  flex: 0 0 12px;
   opacity: 0.6;
-  margin-left: 4px;
+}
+
+.col-name {
+  flex: 0 0 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.85;
+}
+
+.col-value {
+  flex: 1 1 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.col-value.preview {
+  opacity: 0.6;
+  font-style: italic;
+}
+
+.col-value.type-string {
+  color: #c41a16;
+}
+
+.col-value.type-number {
+  color: #1c00cf;
+}
+
+.col-value.type-boolean {
+  color: #aa0d91;
+}
+
+.col-value.type-null,
+.col-value.type-undefined {
+  opacity: 0.5;
 }
 
 .children {
