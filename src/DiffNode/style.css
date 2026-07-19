@@ -7,8 +7,19 @@
   user-select:none;
 }
 
+.count {
+  opacity: 0.6;
+  margin-left: 4px;
+}
+
 .children {
   margin-left:12px;
+}
+
+.diff-created,
+.diff-updated,
+.diff-deleted {
+  transition: background-color 1s ease;
 }
 
 .diff-created {
@@ -22,4 +33,8 @@
 .diff-deleted {
   background-color: rgba(244, 67, 54, 0.15);
   text-decoration: line-through;
+}
+
+.diff-fading {
+  background-color: transparent;
 }

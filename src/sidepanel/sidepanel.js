@@ -8,16 +8,17 @@ import "./sidepanel.css";
 
 const vuetify = createVuetify();
 
-// Reactive holder for the latest trame state, fed by content.js relaying
-// messages from inject.js (which runs in the inspected page).
-const state = shallowRef(null);
+// Holds the latest diff message, fed by content.js relaying messages
+// from inject.js (which runs in the inspected page). shallowRef avoids
+// Vue auto-wrapping each incoming plain object in a reactive Proxy.
+const diff = shallowRef(null);
 
 chrome.runtime.onMessage.addListener((message) => {
-  if (message?.type === "TRAME_STATE_UPDATE") {
-    if (!state.value) {
-      console.log("[trame-state-inspector] sidepanel received first state update:", message.state);
+  if (message?.type === "TRAME_STATE_DIFF") {
+    if (!diff.value) {
+      console.log("[trame-state-inspector] sidepanel received first diff:", message.diff);
     }
-    state.value = message.state;
+    diff.value = message.diff;
   }
 });
 
@@ -30,7 +31,7 @@ const app = createApp({
         // which the default Vite build of "vue" doesn't include - it
         // fails silently (console warning only) and renders nothing.
         // h() works with the runtime-only build.
-        return () => h(StateDiffViewer, { state: state.value });
+        return () => h(StateDiffViewer, { diff: diff.value });
     }
 });
 

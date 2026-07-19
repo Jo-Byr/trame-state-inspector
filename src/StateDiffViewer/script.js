@@ -1,109 +1,7 @@
 import DiffNode from "../DiffNode/index.vue";
 
-const deepDiffMapper = function () {
-  return {
-    VALUE_CREATED: 'created',
-    VALUE_UPDATED: 'updated',
-    VALUE_DELETED: 'deleted',
-    VALUE_UNCHANGED: 'unchanged',
-    map: function(obj1, obj2) {
-      if (this.isFunction(obj1) || this.isFunction(obj2)) {
-        throw 'Invalid argument. Function given, object expected.';
-      }
-      if (this.isValue(obj1) || this.isValue(obj2) || Object.prototype.toString.call(obj1) !== Object.prototype.toString.call(obj2)) {
-        return {
-          type: this.compareValues(obj1, obj2),
-          data: obj1 === undefined ? obj2 : obj1
-        };
-      }
-
-      if (this.isArray(obj1)) {
-        var diff = [];
-        for (var i = 0; i < Math.max(obj1.length, obj2.length); i++) {
-            diff.push(this.map(obj1[i], obj2[i]));
-        }
-        return diff;
-      }
-
-      var diff = {};
-      for (var key in obj1) {
-        if (this.isFunction(obj1[key])) {
-          continue;
-        }
-
-        var value2 = undefined;
-        if (obj2[key] !== undefined) {
-          value2 = obj2[key];
-        }
-
-        diff[key] = this.map(obj1[key], value2);
-      }
-      for (var key in obj2) {
-        if (this.isFunction(obj2[key]) || diff[key] !== undefined) {
-          continue;
-        }
-
-        diff[key] = this.map(undefined, obj2[key]);
-      }
-
-      return diff;
-
-    },
-    compareValues: function (value1, value2) {
-      if (value1 === value2) {
-        return this.VALUE_UNCHANGED;
-      }
-      if (this.isDate(value1) && this.isDate(value2) && value1.getTime() === value2.getTime()) {
-        return this.VALUE_UNCHANGED;
-      }
-      if (value1 === undefined) {
-        return this.VALUE_CREATED;
-      }
-      if (value2 === undefined) {
-        return this.VALUE_DELETED;
-      }
-      return this.VALUE_UPDATED;
-    },
-    isFunction: function (x) {
-      return Object.prototype.toString.call(x) === '[object Function]';
-    },
-    isArray: function (x) {
-      return Object.prototype.toString.call(x) === '[object Array]';
-    },
-    isDate: function (x) {
-      return Object.prototype.toString.call(x) === '[object Date]';
-    },
-    isObject: function (x) {
-      return Object.prototype.toString.call(x) === '[object Object]';
-    },
-    isValue: function (x) {
-      return !this.isObject(x) && !this.isArray(x);
-    }
-  }
-}();
-
-// Walks a diffTree produced by deepDiffMapper.map and records the diff
-// type of every leaf under its dotted path, so classFor() can look
-// changes up in O(1) instead of re-walking the tree per node.
-function collectChanges(node, path, map) {
-  if (node && typeof node === "object" && "type" in node && "data" in node) {
-    map.set(path, node.type);
-    return;
-  }
-
-  if (Array.isArray(node)) {
-    node.forEach((child, i) =>
-      collectChanges(child, path ? `${path}.${i}` : `${i}`, map)
-    );
-    return;
-  }
-
-  if (node && typeof node === "object") {
-    for (const key in node) {
-      collectChanges(node[key], path ? `${path}.${key}` : key, map);
-    }
-  }
-}
+const HIGHLIGHT_MS = 2000;
+const FADE_MS = 1000;
 
 export default {
   name: "StateDiffViewer",
@@ -112,44 +10,84 @@ export default {
   },
 
   props: {
-    state: {
+    // {created:{key:value}, updated:{key:value}, deleted:[key]} - one
+    // batch of top-level state changes, pushed in by sidepanel.js as it
+    // receives TRAME_STATE_DIFF messages relayed from the page. We no
+    // longer receive full snapshots, so there's nothing left to run a
+    // recursive deepDiffMapper.map(previous, current) over - trame's
+    // own trame.state.watch() already tells us exactly which top-level
+    // keys changed and how, so we just apply that directly.
+    diff: {
       type: Object,
       default: null
     }
   },
+
   data() {
     return {
-      previousState: null,
-      diffTree: {},
-      expanded:new Set(),
-      highlights:new Map()
+      // Live top-level key -> value map, built up incrementally from
+      // every diff we've applied so far (not a snapshot from the page).
+      model: {},
+      expanded: new Set(),
+      // Top-level key -> 'created' | 'updated' | 'deleted'. Each entry
+      // is time-limited (see markHighlight) rather than living until
+      // the next unrelated diff happens to arrive.
+      highlights: new Map(),
+      // Keys currently in their fade-out window.
+      fading: new Set(),
+      // key -> { solid, fade } timeout ids, so a key that changes again
+      // mid-highlight restarts its own timer instead of stacking timers.
+      timers: new Map()
     };
   },
 
   watch: {
-    state: {
-      handler(newState) {
-        if (!newState) return;
+    diff(newDiff) {
+      if (!newDiff) return;
 
-        const current = JSON.parse(JSON.stringify(newState));
+      for (const [key, value] of Object.entries(newDiff.created || {})) {
+        this.model[key] = value;
+        this.markHighlight(key, "created");
+      }
 
-        this.diffTree = deepDiffMapper.map(
-          this.previousState ?? current,
-          current
-        );
+      for (const [key, value] of Object.entries(newDiff.updated || {})) {
+        this.model[key] = value;
+        this.markHighlight(key, "updated");
+      }
 
-        const highlights = new Map();
-        collectChanges(this.diffTree, "", highlights);
-        this.highlights = highlights;
-
-        this.previousState = current;
-      },
-      immediate: true,
-      deep: true
+      for (const key of newDiff.deleted || []) {
+        delete this.model[key];
+        this.markHighlight(key, "deleted");
+      }
     }
   },
 
   methods: {
+    // Solid highlight for HIGHLIGHT_MS, then fades over FADE_MS, then
+    // clears. Restarts cleanly if the same key changes again mid-fade.
+    markHighlight(key, type){
+      const existing = this.timers.get(key);
+      if (existing) {
+        clearTimeout(existing.solid);
+        clearTimeout(existing.fade);
+      }
+
+      this.highlights.set(key, type);
+      this.fading.delete(key);
+
+      const solid = setTimeout(() => {
+        this.fading.add(key);
+      }, HIGHLIGHT_MS);
+
+      const fade = setTimeout(() => {
+        this.highlights.delete(key);
+        this.fading.delete(key);
+        this.timers.delete(key);
+      }, HIGHLIGHT_MS + FADE_MS);
+
+      this.timers.set(key, { solid, fade });
+    },
+
     toggle(path){
       if(this.expanded.has(path)) {
         this.expanded.delete(path);
@@ -163,11 +101,13 @@ export default {
       return this.expanded.has(path);
     },
 
+    // Highlights only exist for top-level keys (that's the granularity
+    // trame.state.watch() gives us), so classFor() only ever lights up
+    // root rows - nested paths simply won't be in the map.
     classFor(path){
       const type = this.highlights.get(path);
-      return type && type !== deepDiffMapper.VALUE_UNCHANGED
-        ? `diff-${type}`
-        : "";
+      if (!type) return "";
+      return this.fading.has(path) ? `diff-${type} diff-fading` : `diff-${type}`;
     }
   }
 };

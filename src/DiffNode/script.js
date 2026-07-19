@@ -2,7 +2,6 @@ export default {
   name:"DiffNode",
   props:[
     "node",
-    "name",
     "path",
     "depth",
     "expanded",
@@ -16,11 +15,24 @@ export default {
       return this.isExpanded(this.path);
     },
 
+    // The last segment of a dotted path is the key/index this node was
+    // reached by - used as its display label.
+    label(){
+      const idx = this.path.lastIndexOf(".");
+      return idx === -1 ? this.path : this.path.slice(idx + 1);
+    },
+
     isLeaf(node){
-      return node &&
-        typeof node==="object" &&
-        "type" in node &&
-        "data" in node;
+      // Nodes are raw state values now (no more {type,data} diff
+      // wrapper) - anything that isn't a plain object/array is a leaf.
+      return node === null || typeof node !== "object";
+    },
+
+    leafLabel(node){
+      if (node === null) return "null";
+      if (node === undefined) return "undefined";
+      if (typeof node === "string") return `"${node}"`;
+      return String(node);
     },
 
     entries(node){

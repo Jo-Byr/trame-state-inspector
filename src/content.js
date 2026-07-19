@@ -19,8 +19,8 @@
     }
 
     chrome.runtime.sendMessage({
-      type: "TRAME_STATE_UPDATE",
-      state: event.data.state
+      type: "TRAME_STATE_DIFF",
+      diff: event.data.diff
     }).catch((err) => {
       // No receiver (side panel not open yet) - safe to ignore, next tick retries.
       console.debug("[trame-state-inspector] sendMessage had no receiver:", err?.message);

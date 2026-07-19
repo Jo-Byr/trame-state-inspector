@@ -3,7 +3,7 @@
   :class="classFor(path)"
 >
   <template v-if="isLeaf(node)">
-    {{name}}: {{ node.data }}
+    <b>{{ label() }}:</b> {{ leafLabel(node) }}
   </template>
 
   <template v-else>
@@ -16,8 +16,12 @@
       </span>
 
       <b>
-        {{name}} ({{ countLabel(node) }})
+        {{ label() }}
       </b>
+
+      <span class="count">
+        {{ countLabel(node) }}
+      </span>
     </div>
 
     <div
@@ -34,7 +38,6 @@
         :toggle="toggle"
         :is-expanded="isExpanded"
         :class-for="classFor"
-        :name="key"
       />
     </div>
   </template>
