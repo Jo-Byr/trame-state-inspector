@@ -10,7 +10,6 @@ export default {
   name:"DiffNode",
   props:[
     "node",
-    "path",
     "depth",
     "expanded",
     "toggle",
@@ -27,7 +26,31 @@ export default {
 
   methods: {
     open(){
-      return this.isExpanded(this.path);
+      return this.isExpanded(this.node.id);
+    },
+
+    expandable() {
+      return (
+        (this.node.type == 'namespace' && Object.keys(this.node.value).length > 0) ||
+        (typeof(this.node.value) === 'object' && Object.keys(this.node.value).length > 0)
+      );
+    },
+
+    isContainer() {
+      return (
+        this.node.type === "value" &&
+        this.node.value !== null &&
+        typeof(this.node.value) === "object"
+      );
+    },
+
+    entries(node){
+      if(Array.isArray(node))
+        return node.map(
+          (v,i)=>[i,v]
+        );
+
+      return Object.entries(node);
     },
 
     // The last segment of a dotted path is the key/index this node was
@@ -43,47 +66,44 @@ export default {
       return node === null || typeof node !== "object";
     },
 
-    leafLabel(node){
-      if (node === null) return "null";
-      if (node === undefined) return "undefined";
-      if (typeof node === "string") return `"${node}"`;
-      return String(node);
+    leafLabel(value){
+      if (value === null) return "null";
+      if (value === undefined) return "undefined";
+      if (typeof value === "string") return `"${value}"`;
+      return String(value);
     },
 
-    entries(node){
-      if(Array.isArray(node))
-        return node.map(
-          (v,i)=>[i,v]
-        );
+    previewLabel(value) {
+      if (Array.isArray(value)) {
+        return `Array(${value.length})`;
+      }
 
-      return Object.entries(node);
-    },
-
-    // Kept out of the template: a literal `{${...}}` inside a mustache
-    // produces a `}}` sequence the compiler misreads as its own closing
-    // delimiter.
-    previewLabel(node){
-      return Array.isArray(node)
-        ? "Array(" + node.length + ")"
-        : "Object(" + Object.keys(node).length + ")";
+      return `Object(${Object.keys(value).length})`;
     },
 
     // Used to color-code the value column by type, the way browser
     // consoles do (strings/numbers/booleans/null read faster that way).
-    leafType(node){
-      if (node === null) return "null";
-      if (node === undefined) return "undefined";
-      return typeof node;
+    leafType(value){
+      if (value === null) return "null";
+      if (value === undefined) return "undefined";
+      return typeof value;
     },
 
-    onDoubleClick(event) {
+    onDoubleClick(){
       this.editing = true;
-      this.editValue = this.node;
+      this.editValue = JSON.stringify(
+        this.node.value
+      );
     },
 
-    validateEdit() {
+    validateEdit(){
+
       this.editing = false;
-      setTrameState(this.path, this.editValue);
+
+      setTrameState(
+        this.node.stateKey,
+        this.editValue
+      );
     },
 
     cancelEdit() {

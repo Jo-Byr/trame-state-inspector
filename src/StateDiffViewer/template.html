@@ -3,7 +3,7 @@
     State diff
   </v-card-title>
 
-  <v-divider/>
+  <v-divider />
 
   <v-card-text class="scroll-area">
     <v-text-field
@@ -13,19 +13,18 @@
       density="compact"
       class="mb-5"
     />
+
     <div class="tree">
-      <template v-for="([key, value]) in Object.entries(model)" :key="key">
-        <DiffNode
-          v-if="key.includes(filterString)"
-          :node="value"
-          :path="key"
-          :depth="0"
-          :expanded="expanded"
-          :toggle="toggle"
-          :is-expanded="isExpanded"
-          :class-for="classFor"
-        />
-      </template>
+      <DiffNode
+        v-for="node in treeModel"
+        :key="node.id"
+        :node="node"
+        :depth="0"
+        :expanded="expanded"
+        :toggle="toggle"
+        :is-expanded="isExpanded"
+        :class-for="classFor"
+      />
     </div>
   </v-card-text>
 </v-card>

@@ -27,7 +27,9 @@ export default {
     return {
       // Live top-level key -> value map, built up incrementally from
       // every diff we've applied so far (not a snapshot from the page).
-      model: {},
+      stateModel: {},
+      treeModel: {},
+      nodeMap: new Map(),
       expanded: new Set(),
       // Top-level key -> 'created' | 'updated' | 'deleted'. Each entry
       // is time-limited (see markHighlight) rather than living until
@@ -48,18 +50,20 @@ export default {
       if (!newDiff) return;
 
       for (const [key, value] of Object.entries(newDiff.created || {})) {
-        this.model[key] = value;
-        this.markHighlight(key, "created");
+        this.stateModel[key] = value;
+        const node = this.addTreeNode(key, value);
+        this.markHighlight(node, "created");
       }
 
       for (const [key, value] of Object.entries(newDiff.updated || {})) {
-        this.model[key] = value;
-        this.markHighlight(key, "updated");
+        this.stateModel[key] = value;
+        const node = this.addTreeNode(key, value);
+        this.markHighlight(node, "updated");
       }
 
       for (const key of newDiff.deleted || []) {
-        delete this.model[key];
-        this.markHighlight(key, "deleted");
+        delete this.stateModel[key];
+        this.removeTreeNode(key);
       }
     }
   },
@@ -67,49 +71,118 @@ export default {
   methods: {
     // Solid highlight for HIGHLIGHT_MS, then fades over FADE_MS, then
     // clears. Restarts cleanly if the same key changes again mid-fade.
-    markHighlight(key, type){
-      const existing = this.timers.get(key);
-      if (existing) {
-        clearTimeout(existing.solid);
-        clearTimeout(existing.fade);
+    // If the node is collapsed, highlight the parent too recursively,
+    // until we reach anon-collapsed parent
+    markHighlight(node, type){
+      while (node !== null && !this.isExpanded(node.id)) {
+        const id = node.id;
+        const existing = this.timers.get(id);
+        if (existing) {
+          clearTimeout(existing.solid);
+          clearTimeout(existing.fade);
+        }
+
+        this.highlights.set(id, type);
+        this.fading.delete(id);
+
+        const solid = setTimeout(() => {
+          this.fading.add(id);
+        }, HIGHLIGHT_MS);
+
+        const fade = setTimeout(() => {
+          this.highlights.delete(id);
+          this.fading.delete(id);
+          this.timers.delete(id);
+        }, HIGHLIGHT_MS + FADE_MS);
+
+        this.timers.set(id, { solid, fade });
+        if (node.parentId !== null) {
+          node = this.getNodeById(node.parentId);
+          if (node === null) {
+            return;
+          }
+        } else {
+          return;
+        }
       }
-
-      this.highlights.set(key, type);
-      this.fading.delete(key);
-
-      const solid = setTimeout(() => {
-        this.fading.add(key);
-      }, HIGHLIGHT_MS);
-
-      const fade = setTimeout(() => {
-        this.highlights.delete(key);
-        this.fading.delete(key);
-        this.timers.delete(key);
-      }, HIGHLIGHT_MS + FADE_MS);
-
-      this.timers.set(key, { solid, fade });
     },
 
-    toggle(path){
-      if(this.expanded.has(path)) {
-        this.expanded.delete(path);
+    getNodeById(id) {
+      return this.nodeMap.get(id) ?? null;
+    },
+
+    toggle(id){
+      if(this.expanded.has(id)) {
+        this.expanded.delete(id);
       } else {
-        this.expanded.add(path);
+        this.expanded.add(id);
       }
       this.expanded = new Set(this.expanded);
     },
 
-    isExpanded(path){
-      return this.expanded.has(path);
+    isExpanded(id){
+      return this.expanded.has(id);
     },
 
-    // Highlights only exist for top-level keys (that's the granularity
-    // trame.state.watch() gives us), so classFor() only ever lights up
-    // root rows - nested paths simply won't be in the map.
-    classFor(path){
-      const type = this.highlights.get(path);
+    classFor(id){
+      const type = this.highlights.get(id);
       if (!type) return "";
-      return this.fading.has(path) ? `diff-${type} diff-fading` : `diff-${type}`;
+      return this.fading.has(id) ? `diff-${type} diff-fading` : `diff-${type}`;
     },
+
+    getNamespaceKeys(key) {
+      return key.split("__");
+    },
+
+    addTreeNode(key, value) {
+      let source = this.treeModel;
+      const namespaceKeys = this.getNamespaceKeys(key);
+      for (const [i, subKey] of namespaceKeys.slice(0, namespaceKeys.length - 1).entries()) {
+        if (source[subKey] === undefined) {
+          let id = namespaceKeys.slice(0, i + 1).join('.');
+          source[subKey] = {
+            type: 'namespace',
+            name: subKey,
+            id,
+            parentId: i === 0 ? null : namespaceKeys.slice(0, i).join('.'),
+            value: {},
+          };
+          this.nodeMap.set(id, source[subKey]);
+        }
+        source = source[subKey].value;
+      }
+      let id = namespaceKeys.join('.');
+      const node = this.makeNodeValue(
+        value,
+        namespaceKeys[namespaceKeys.length - 1],
+        id,
+        namespaceKeys.length > 1 ? namespaceKeys.slice(0, namespaceKeys.length - 1).join('.') : null,
+      );
+      source[namespaceKeys[namespaceKeys.length - 1]] = node;
+      return node;
+    },
+
+    makeNodeValue(value, name, id, parentId) {
+      let nodeValue = value;
+      if (typeof(value) === 'object') {
+        if (Array.isArray(value)) {
+          nodeValue = value.map((val, i) => this.makeNodeValue(val, i, `${id}.${i}`, id));
+        } else if (value !== null && value !== undefined) {
+          nodeValue = {};
+          for (const [key, val] of Object.entries(value)) {
+            nodeValue[key] = this.makeNodeValue(val, key, `${id}.${key}`, id);
+          }
+        }
+      }
+      const node = {
+        type: 'value',
+        name,
+        id,
+        parentId,
+        value: nodeValue,
+      };
+      this.nodeMap.set(id, node);
+      return node;
+    }
   }
 };

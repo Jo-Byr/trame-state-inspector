@@ -1,48 +1,66 @@
 <div
   class="node"
-  :class="classFor(path)"
+  :class="classFor(node.id)"
 >
   <div class="row">
     <span
       class="arrow"
-      :class="{ clickable: !isLeaf(node) }"
-      @click="!isLeaf(node) && toggle(path)"
+      :class="{ clickable: expandable() }"
+      @click="expandable() && toggle(node.id)"
     >
-      {{ (isLeaf(node) || Object.keys(node).length == 0) ? "" : (open() ? "▼" : "▶") }}
+      {{
+        expandable()
+          ? (open() ? "▼" : "▶")
+          : ""
+      }}
     </span>
 
     <span class="col-name">
-      {{ label() }}
+      {{ node.name }}
+    </span>
+
+    <span
+      v-if="node.type === 'namespace'"
+      class="col-value namespace"
+    >
+      [namespace]
     </span>
 
     <v-textarea
-      v-if="editing"
+      v-else-if="editing"
       v-model="editValue"
       :rows="3"
       :hide-details="true"
       @keyup.enter="validateEdit"
       @keyup.esc="cancelEdit"
-    ></v-textarea>
+      v-click-outside="cancelEdit"
+    />
 
     <span
       v-else
       class="col-value clickable"
-      :class="isLeaf(node) ? 'type-' + leafType(node) : 'preview'"
-      @dblclick="onDoubleClick($event)"
+      :class="
+        isContainer()
+          ? 'preview'
+          : 'type-' + leafType(node.value)
+      "
+      @dblclick="!isContainer() && onDoubleClick()"
     >
-      {{ isLeaf(node) ? leafLabel(node) : previewLabel(node) }}
+      {{
+        isContainer()
+          ? previewLabel(node.value)
+          : leafLabel(node.value)
+      }}
     </span>
   </div>
-
   <div
-    v-if="!isLeaf(node) && open()"
+    v-if="expandable() && open()"
     class="children"
   >
     <DiffNode
-      v-for="([key,value]) in entries(node)"
-      :key="key"
-      :node="value"
-      :path="path ? path+'.'+key : key"
+      v-for="child in node.value"
+      :key="child.id"
+      :node="child"
       :depth="depth+1"
       :expanded="expanded"
       :toggle="toggle"
