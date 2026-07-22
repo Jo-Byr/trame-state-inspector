@@ -27,12 +27,13 @@
     </span>
 
     <v-textarea
+      ref="editor"
       v-else-if="editing"
       v-model="editValue"
       :rows="3"
       :hide-details="true"
-      @keyup.enter="validateEdit"
-      @keyup.esc="cancelEdit"
+      @keydown.enter.prevent="validateEdit"
+      @keydown.esc.stop.prevent="cancelEdit"
       v-click-outside="cancelEdit"
     />
 

@@ -1,3 +1,5 @@
+import { nextTick } from "vue";
+
 function setTrameState(key, value) {
   chrome.runtime.sendMessage({
     type: "TRAME_STATE_SET",
@@ -89,11 +91,13 @@ export default {
       return typeof value;
     },
 
-    onDoubleClick(){
+    async onDoubleClick(){
       this.editing = true;
       this.editValue = JSON.stringify(
         this.node.value
       );
+      await nextTick();
+      this.$refs.editor.focus();
     },
 
     validateEdit(){
