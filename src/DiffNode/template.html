@@ -2,22 +2,33 @@
   class="node"
   :class="classFor(path)"
 >
-  <div
-    class="row"
-    :class="{ clickable: !isLeaf(node) }"
-    @click="!isLeaf(node) && toggle(path)"
-  >
-    <span class="arrow">
-      {{ isLeaf(node) ? "" : (open() ? "▼" : "▶") }}
+  <div class="row">
+    <span
+      class="arrow"
+      :class="{ clickable: !isLeaf(node) }"
+      @click="!isLeaf(node) && toggle(path)"
+    >
+      {{ (isLeaf(node) || Object.keys(node).length == 0) ? "" : (open() ? "▼" : "▶") }}
     </span>
 
     <span class="col-name">
       {{ label() }}
     </span>
 
+    <v-textarea
+      v-if="editing"
+      v-model="editValue"
+      :rows="3"
+      :hide-details="true"
+      @keyup.enter="validateEdit"
+      @keyup.esc="cancelEdit"
+    ></v-textarea>
+
     <span
-      class="col-value"
+      v-else
+      class="col-value clickable"
       :class="isLeaf(node) ? 'type-' + leafType(node) : 'preview'"
+      @dblclick="onDoubleClick($event)"
     >
       {{ isLeaf(node) ? leafLabel(node) : previewLabel(node) }}
     </span>

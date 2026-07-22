@@ -39,6 +39,7 @@ export default {
       // mid-highlight restarts its own timer instead of stacking timers.
       timers: new Map(),
       filterString: '',
+      showMenu: false,
     };
   },
 
@@ -109,6 +110,6 @@ export default {
       const type = this.highlights.get(path);
       if (!type) return "";
       return this.fading.has(path) ? `diff-${type} diff-fading` : `diff-${type}`;
-    }
+    },
   }
 };

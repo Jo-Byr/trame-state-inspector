@@ -11,7 +11,7 @@
   font-size: 12px;
 }
 
-.row.clickable {
+.row .clickable {
   cursor: pointer;
   user-select: none;
 }

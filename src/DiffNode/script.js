@@ -1,3 +1,11 @@
+function setTrameState(key, value) {
+  chrome.runtime.sendMessage({
+    type: "TRAME_STATE_SET",
+    key,
+    value: JSON.parse(value)
+  });
+}
+
 export default {
   name:"DiffNode",
   props:[
@@ -9,6 +17,13 @@ export default {
     "isExpanded",
     "classFor"
   ],
+
+  data() {
+    return {
+      editing: false,
+      editValue: '',
+    }
+  },
 
   methods: {
     open(){
@@ -59,6 +74,20 @@ export default {
       if (node === null) return "null";
       if (node === undefined) return "undefined";
       return typeof node;
+    },
+
+    onDoubleClick(event) {
+      this.editing = true;
+      this.editValue = this.node;
+    },
+
+    validateEdit() {
+      this.editing = false;
+      setTrameState(this.path, this.editValue);
+    },
+
+    cancelEdit() {
+      this.editing = false;
     }
   }
 };

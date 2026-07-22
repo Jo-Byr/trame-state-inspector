@@ -6,7 +6,13 @@
   <v-divider/>
 
   <v-card-text class="scroll-area">
-    <v-text-field v-model="filterString" label="Filter" :hide-details="true" density="compact" />
+    <v-text-field
+      v-model="filterString"
+      label="Filter"
+      :hide-details="true"
+      density="compact"
+      class="mb-5"
+    />
     <div class="tree">
       <template v-for="([key, value]) in Object.entries(model)" :key="key">
         <DiffNode

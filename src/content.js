@@ -1,29 +1,71 @@
-// Runs in the ISOLATED world (default for content scripts), so it has
-// access to chrome.* APIs but not to the page's window.trame directly.
-// It relays state posted by inject.js (MAIN world) to the extension.
-//
-// Wrapped in an IIFE: content scripts persist their JS context across
-// extension reloads until the page itself navigates/refreshes, so a
-// top-level `let`/`const` throws "Identifier has already been declared"
-// the moment the extension is reloaded and re-injects into the same tab.
+// Runs in the ISOLATED world.
+// Bridges messages between inject.js (MAIN world)
+// and extension runtime.
+
 (function () {
-  let content_relayed = false;
+  const SOURCE = "trame-state-inspector";
 
-  window.addEventListener("message", (event) => {
-    if (event.source !== window) return;
-    if (!event.data || event.data.source !== "trame-state-inspector") return;
+  let relayed = false;
 
-    if (!content_relayed) {
-      content_relayed = true;
-      console.log("[trame-state-inspector] content.js relaying state to extension runtime");
+
+  // MAIN world -> extension
+  window.addEventListener(
+    "message",
+    (event) => {
+      if (
+        event.source !== window ||
+        !event.data ||
+        event.data.source !== SOURCE
+      ) {
+        return;
+      }
+
+
+      if (event.data.type !== "STATE_DIFF") {
+        return;
+      }
+
+
+      if (!relayed) {
+        relayed = true;
+
+        console.log(
+          "[trame-state-inspector] content.js relaying state to extension runtime"
+        );
+      }
+
+
+      chrome.runtime
+        .sendMessage({
+          type: "TRAME_STATE_DIFF",
+          diff: event.data.diff
+        })
+        .catch(() => {
+          // Side panel may not be open
+        });
     }
+  );
 
-    chrome.runtime.sendMessage({
-      type: "TRAME_STATE_DIFF",
-      diff: event.data.diff
-    }).catch((err) => {
-      // No receiver (side panel not open yet) - safe to ignore, next tick retries.
-      console.debug("[trame-state-inspector] sendMessage had no receiver:", err?.message);
-    });
-  });
+
+  // extension -> MAIN world
+  chrome.runtime.onMessage.addListener(
+    (message) => {
+      if (
+        message.type !== "TRAME_STATE_SET"
+      ) {
+        return;
+      }
+
+
+      window.postMessage(
+        {
+          source: SOURCE,
+          type: "STATE_SET",
+          key: message.key,
+          value: message.value
+        },
+        "*"
+      );
+    }
+  );
 })();
