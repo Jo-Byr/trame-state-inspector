@@ -53,7 +53,6 @@
       return;
     }
 
-
     if (!found) {
       found = true;
 
@@ -63,20 +62,16 @@
       );
     }
 
-
     const currentKeys = Object.keys(state);
-
 
     for (const key of currentKeys) {
       if (watchedKeys.includes(key)) {
         continue;
       }
 
-
       watchedKeys.push(key);
 
       pendingCreated[key] = state[key];
-
 
       watchers[key] = trame.state.watch(
         [key],
@@ -95,7 +90,6 @@
       );
     }
 
-
     for (let i = watchedKeys.length - 1; i >= 0; i--) {
       const key = watchedKeys[i];
 
@@ -112,7 +106,6 @@
       pendingDeleted.push(key);
     }
   }
-
 
   function flush() {
     const hasCreated =
@@ -172,9 +165,7 @@
         return;
       }
 
-
       const data = event.data;
-
 
       if (
         !data ||
@@ -184,9 +175,7 @@
         return;
       }
 
-
       const trameState = window.trame?.state;
-
 
       if (
         !trameState ||
@@ -199,7 +188,6 @@
         return;
       }
 
-
       trameState.set(
         data.key,
         data.value
@@ -207,11 +195,9 @@
     }
   );
 
-
   console.log(
     "[trame-state-inspector] inject.js loaded in page world"
   );
-
 
   setInterval(
     discoverKeys,

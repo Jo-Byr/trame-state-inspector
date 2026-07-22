@@ -1,12 +1,5 @@
 import { nextTick } from "vue";
-
-function setTrameState(key, value) {
-  chrome.runtime.sendMessage({
-    type: "TRAME_STATE_SET",
-    key,
-    value: JSON.parse(value)
-  });
-}
+import { getNodeValue } from "../helper.js";
 
 export default {
   name:"DiffNode",
@@ -93,21 +86,14 @@ export default {
 
     async onDoubleClick(){
       this.editing = true;
-      this.editValue = JSON.stringify(
-        this.node.value
-      );
+      this.editValue = JSON.stringify(getNodeValue(this.node));
       await nextTick();
       this.$refs.editor.focus();
     },
 
     validateEdit(){
-
       this.editing = false;
-
-      setTrameState(
-        this.node.stateKey,
-        this.editValue
-      );
+      this.$emit('valueChanged', {id: this.node.id, value: JSON.parse(this.editValue)});
     },
 
     cancelEdit() {

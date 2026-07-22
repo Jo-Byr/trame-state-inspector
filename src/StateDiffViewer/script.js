@@ -1,7 +1,16 @@
 import DiffNode from "../DiffNode/index.vue";
+import { getNodeValue } from "../helper.js";
 
 const HIGHLIGHT_MS = 2000;
 const FADE_MS = 1000;
+
+function setTrameStateValue(key, value) {
+  chrome.runtime.sendMessage({
+    type: "TRAME_STATE_SET",
+    key,
+    value,
+  });
+}
 
 export default {
   name: "StateDiffViewer",
@@ -74,7 +83,7 @@ export default {
     // If the node is collapsed, highlight the parent too recursively,
     // until we reach anon-collapsed parent
     markHighlight(node, type){
-      while (node !== null && !this.isExpanded(node.id)) {
+      do {
         const id = node.id;
         const existing = this.timers.get(id);
         if (existing) {
@@ -104,7 +113,7 @@ export default {
         } else {
           return;
         }
-      }
+      } while (node !== null && !this.isExpanded(node.id));
     },
 
     getNodeById(id) {
@@ -159,6 +168,7 @@ export default {
         namespaceKeys.length > 1 ? namespaceKeys.slice(0, namespaceKeys.length - 1).join('.') : null,
       );
       source[namespaceKeys[namespaceKeys.length - 1]] = node;
+      node.stateKey = key;
       return node;
     },
 
@@ -183,6 +193,31 @@ export default {
       };
       this.nodeMap.set(id, node);
       return node;
+    },
+
+    onValueChanged({id, value}) {
+      if (typeof value === 'string') {
+        value = value.replaceAll("'", '"');
+      }
+      const node = this.getNodeById(id);
+      if (node === null) {
+        return;
+      }
+      if (node.stateKey !== undefined) {
+        setTrameStateValue(node.stateKey, structuredClone(value));
+      } else {
+        let parentNode = this.getNodeById(node.parentId);
+        while (parentNode !== null) {
+          let parentValue = getNodeValue(parentNode);
+          parentValue[node.name] = value;
+          if (parentNode.stateKey !== undefined) {
+            setTrameStateValue(parentNode.stateKey, structuredClone(parentValue));
+            return;
+          } else {
+            parentNode = this.getNodeById(parentNode.parentId);
+          }
+        }
+      }
     }
   }
 };

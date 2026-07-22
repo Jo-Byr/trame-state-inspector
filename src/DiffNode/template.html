@@ -45,7 +45,7 @@
           ? 'preview'
           : 'type-' + leafType(node.value)
       "
-      @dblclick="!isContainer() && onDoubleClick()"
+      @dblclick="onDoubleClick()"
     >
       {{
         isContainer()
@@ -67,6 +67,7 @@
       :toggle="toggle"
       :is-expanded="isExpanded"
       :class-for="classFor"
+      @value-changed="((v) => $emit('valueChanged', v))"
     />
   </div>
 </div>
