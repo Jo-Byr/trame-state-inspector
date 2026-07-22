@@ -37,7 +37,8 @@ export default {
       fading: new Set(),
       // key -> { solid, fade } timeout ids, so a key that changes again
       // mid-highlight restarts its own timer instead of stacking timers.
-      timers: new Map()
+      timers: new Map(),
+      filterString: '',
     };
   },
 

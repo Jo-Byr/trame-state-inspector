@@ -6,18 +6,20 @@
   <v-divider/>
 
   <v-card-text class="scroll-area">
+    <v-text-field v-model="filterString" label="Filter" :hide-details="true" density="compact" />
     <div class="tree">
-      <DiffNode
-        v-for="([key, value]) in Object.entries(model)"
-        :key="key"
-        :node="value"
-        :path="key"
-        :depth="0"
-        :expanded="expanded"
-        :toggle="toggle"
-        :is-expanded="isExpanded"
-        :class-for="classFor"
-      />
+      <template v-for="([key, value]) in Object.entries(model)" :key="key">
+        <DiffNode
+          v-if="key.includes(filterString)"
+          :node="value"
+          :path="key"
+          :depth="0"
+          :expanded="expanded"
+          :toggle="toggle"
+          :is-expanded="isExpanded"
+          :class-for="classFor"
+        />
+      </template>
     </div>
   </v-card-text>
 </v-card>
