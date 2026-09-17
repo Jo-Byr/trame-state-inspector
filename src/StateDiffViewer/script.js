@@ -1,88 +1,108 @@
 import DiffNode from "../DiffNode/index.vue";
-import { getNodeValue } from "../helper.js";
+import { getNodeValue, nodeMatchesFilter } from "../helper.js";
 
 const HIGHLIGHT_MS = 2000;
 const FADE_MS = 1000;
 
-function setTrameStateValue(key, value) {
-  chrome.runtime.sendMessage({
-    type: "TRAME_STATE_SET",
-    key,
-    value,
-  });
-}
-
 export default {
   name: "StateDiffViewer",
-  components: {
-    DiffNode
-  },
+  components: { DiffNode },
 
   props: {
-    // {created:{key:value}, updated:{key:value}, deleted:[key]} - one
-    // batch of top-level state changes, pushed in by sidepanel.js as it
-    // receives TRAME_STATE_DIFF messages relayed from the page. We no
-    // longer receive full snapshots, so there's nothing left to run a
-    // recursive deepDiffMapper.map(previous, current) over - trame's
-    // own trame.state.watch() already tells us exactly which top-level
-    // keys changed and how, so we just apply that directly.
-    diff: {
-      type: Object,
-      default: null
-    }
+    store: { type: Object, required: true },
   },
 
   data() {
     return {
-      // Live top-level key -> value map, built up incrementally from
-      // every diff we've applied so far (not a snapshot from the page).
-      stateModel: {},
       treeModel: {},
       nodeMap: new Map(),
       expanded: new Set(),
-      // Top-level key -> 'created' | 'updated' | 'deleted'. Each entry
-      // is time-limited (see markHighlight) rather than living until
-      // the next unrelated diff happens to arrive.
       highlights: new Map(),
-      // Keys currently in their fade-out window.
       fading: new Set(),
-      // key -> { solid, fade } timeout ids, so a key that changes again
-      // mid-highlight restarts its own timer instead of stacking timers.
       timers: new Map(),
-      filterString: '',
+      filterString: "",
       showMenu: false,
     };
   },
 
+  computed: {
+    // Top-level nodes that match the current filter. When the filter is
+    // empty the whole tree is returned. DiffNode handles the deeper
+    // levels itself using the same matcher.
+    visibleTree() {
+      const q = (this.filterString || "").trim().toLowerCase();
+      if (!q) {
+        return this.treeModel;
+      }
+
+      const result = {};
+      for (const [key, node] of Object.entries(this.treeModel)) {
+        if (nodeMatchesFilter(node, q)) {
+          result[key] = node;
+        }
+      }
+      return result;
+    },
+  },
+
   watch: {
-    diff(newDiff) {
-      if (!newDiff) return;
+    "store.version": {
+      handler() {
+        this.rebuildFromState();
+        this.applyHighlights(this.store.lastDiff);
+      },
+      immediate: true,
+    },
+  },
 
-      for (const [key, value] of Object.entries(newDiff.created || {})) {
-        this.stateModel[key] = value;
-        const node = this.addTreeNode(key, value);
-        this.markHighlight(node, "created");
-      }
+  mounted() {
+    // Belt-and-braces: if the store was already populated before this
+    // component was created, build the tree now. The watcher above will
+    // keep it in sync from here on.
+    this.rebuildFromState();
+    this.applyHighlights(this.store.lastDiff);
 
-      for (const [key, value] of Object.entries(newDiff.updated || {})) {
-        this.stateModel[key] = value;
-        const node = this.addTreeNode(key, value);
-        this.markHighlight(node, "updated");
-      }
-
-      for (const key of newDiff.deleted || []) {
-        delete this.stateModel[key];
-        this.removeTreeNode(key);
-      }
-    }
+    console.log(
+      "[trame-state-inspector] viewer mounted, state keys:",
+      Object.keys(this.store.state)
+    );
   },
 
   methods: {
-    // Solid highlight for HIGHLIGHT_MS, then fades over FADE_MS, then
-    // clears. Restarts cleanly if the same key changes again mid-fade.
-    // If the node is collapsed, highlight the parent too recursively,
-    // until we reach anon-collapsed parent
-    markHighlight(node, type){
+    rebuildFromState() {
+      this.treeModel = {};
+      this.nodeMap.clear();
+
+      for (const [key, value] of Object.entries(this.store.state)) {
+        this.addTreeNode(key, value);
+      }
+
+      console.log(
+        "[trame-state-inspector] rebuilt tree, top-level keys:",
+        Object.keys(this.treeModel)
+      );
+    },
+
+    applyHighlights(diff) {
+      if (!diff) {
+        return;
+      }
+
+      const highlight = (keys, type) => {
+        for (const key of keys) {
+          const id = key.split("__").join(".");
+          const node = this.nodeMap.get(id);
+          if (node) {
+            this.markHighlight(node, type);
+          }
+        }
+      };
+
+      highlight(Object.keys(diff.created || {}), "created");
+      highlight(Object.keys(diff.updated || {}), "updated");
+    },
+
+    markHighlight(node, type) {
       do {
         const id = node.id;
         const existing = this.timers.get(id);
@@ -105,6 +125,7 @@ export default {
         }, HIGHLIGHT_MS + FADE_MS);
 
         this.timers.set(id, { solid, fade });
+
         if (node.parentId !== null) {
           node = this.getNodeById(node.parentId);
           if (node === null) {
@@ -120,8 +141,8 @@ export default {
       return this.nodeMap.get(id) ?? null;
     },
 
-    toggle(id){
-      if(this.expanded.has(id)) {
+    toggle(id) {
+      if (this.expanded.has(id)) {
         this.expanded.delete(id);
       } else {
         this.expanded.add(id);
@@ -129,14 +150,16 @@ export default {
       this.expanded = new Set(this.expanded);
     },
 
-    isExpanded(id){
+    isExpanded(id) {
       return this.expanded.has(id);
     },
 
-    classFor(id){
+    classFor(id) {
       const type = this.highlights.get(id);
       if (!type) return "";
-      return this.fading.has(id) ? `diff-${type} diff-fading` : `diff-${type}`;
+      return this.fading.has(id)
+        ? `diff-${type} diff-fading`
+        : `diff-${type}`;
     },
 
     getNamespaceKeys(key) {
@@ -146,27 +169,34 @@ export default {
     addTreeNode(key, value) {
       let source = this.treeModel;
       const namespaceKeys = this.getNamespaceKeys(key);
-      for (const [i, subKey] of namespaceKeys.slice(0, namespaceKeys.length - 1).entries()) {
+
+      for (const [i, subKey] of namespaceKeys
+        .slice(0, namespaceKeys.length - 1)
+        .entries()) {
         if (source[subKey] === undefined) {
-          let id = namespaceKeys.slice(0, i + 1).join('.');
+          const id = namespaceKeys.slice(0, i + 1).join(".");
           source[subKey] = {
-            type: 'namespace',
+            type: "namespace",
             name: subKey,
             id,
-            parentId: i === 0 ? null : namespaceKeys.slice(0, i).join('.'),
+            parentId: i === 0 ? null : namespaceKeys.slice(0, i).join("."),
             value: {},
           };
           this.nodeMap.set(id, source[subKey]);
         }
         source = source[subKey].value;
       }
-      let id = namespaceKeys.join('.');
+
+      const id = namespaceKeys.join(".");
       const node = this.makeNodeValue(
         value,
         namespaceKeys[namespaceKeys.length - 1],
         id,
-        namespaceKeys.length > 1 ? namespaceKeys.slice(0, namespaceKeys.length - 1).join('.') : null,
+        namespaceKeys.length > 1
+          ? namespaceKeys.slice(0, namespaceKeys.length - 1).join(".")
+          : null
       );
+
       source[namespaceKeys[namespaceKeys.length - 1]] = node;
       node.stateKey = key;
       return node;
@@ -174,9 +204,12 @@ export default {
 
     makeNodeValue(value, name, id, parentId) {
       let nodeValue = value;
-      if (typeof(value) === 'object') {
+
+      if (typeof value === "object") {
         if (Array.isArray(value)) {
-          nodeValue = value.map((val, i) => this.makeNodeValue(val, i, `${id}.${i}`, id));
+          nodeValue = value.map((val, i) =>
+            this.makeNodeValue(val, i, `${id}.${i}`, id)
+          );
         } else if (value !== null && value !== undefined) {
           nodeValue = {};
           for (const [key, val] of Object.entries(value)) {
@@ -184,8 +217,9 @@ export default {
           }
         }
       }
+
       const node = {
-        type: 'value',
+        type: "value",
         name,
         id,
         parentId,
@@ -195,29 +229,35 @@ export default {
       return node;
     },
 
-    onValueChanged({id, value}) {
-      if (typeof value === 'string') {
+    onValueChanged({ id, value }) {
+      if (typeof value === "string") {
         value = value.replaceAll("'", '"');
       }
+
       const node = this.getNodeById(id);
       if (node === null) {
         return;
       }
+
       if (node.stateKey !== undefined) {
-        setTrameStateValue(node.stateKey, structuredClone(value));
+        this.store.set(node.stateKey, structuredClone(value));
       } else {
         let parentNode = this.getNodeById(node.parentId);
         while (parentNode !== null) {
-          let parentValue = getNodeValue(parentNode);
+          const parentValue = getNodeValue(parentNode);
           parentValue[node.name] = value;
+
           if (parentNode.stateKey !== undefined) {
-            setTrameStateValue(parentNode.stateKey, structuredClone(parentValue));
+            this.store.set(
+              parentNode.stateKey,
+              structuredClone(parentValue)
+            );
             return;
-          } else {
-            parentNode = this.getNodeById(parentNode.parentId);
           }
+
+          parentNode = this.getNodeById(parentNode.parentId);
         }
       }
-    }
-  }
+    },
+  },
 };

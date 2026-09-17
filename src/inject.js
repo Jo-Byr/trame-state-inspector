@@ -144,7 +144,7 @@
     window.postMessage(
       {
         source: SOURCE,
-        type: "STATE_DIFF",
+        type: "TRAME_STATE_DIFF",
         diff: payload
       },
       "*"
@@ -156,8 +156,7 @@
     pendingDeleted = [];
   }
 
-
-  // Receive edits from extension
+  // Receive edits and state requests from the extension
   window.addEventListener(
     "message",
     (event) => {
@@ -167,31 +166,42 @@
 
       const data = event.data;
 
-      if (
-        !data ||
-        data.source !== SOURCE ||
-        data.type !== "STATE_SET"
-      ) {
+      if (!data || data.source !== SOURCE) {
         return;
       }
 
-      const trameState = window.trame?.state;
+      if (data.type === "TRAME_STATE_SET") {
+        const trameState = window.trame?.state;
 
-      if (
-        !trameState ||
-        typeof trameState.set !== "function"
-      ) {
-        console.warn(
-          "[trame-state-inspector] trame.state.set() unavailable"
+        if (!trameState || typeof trameState.set !== "function") {
+          console.warn(
+            "[trame-state-inspector] trame.state.set() unavailable"
+          );
+          return;
+        }
+
+        trameState.set(data.key, data.value);
+        return;
+      }
+
+      if (data.type === "TRAME_REQUEST_STATE") {
+        // A full snapshot supersedes any diffs we haven't flushed yet.
+        pendingCreated = {};
+        pendingUpdated = {};
+        pendingDeleted = [];
+
+        const state = getTrameState();
+
+        window.postMessage(
+          {
+            source: SOURCE,
+            type: "TRAME_STATE_FULL",
+            requestId: data.requestId,
+            state: state ? toPlain(state) : null,
+          },
+          "*"
         );
-
-        return;
       }
-
-      trameState.set(
-        data.key,
-        data.value
-      );
     }
   );
 

@@ -16,7 +16,7 @@
 
     <div class="tree">
       <DiffNode
-        v-for="node in treeModel"
+        v-for="node in visibleTree"
         :key="node.id"
         :node="node"
         :depth="0"
@@ -24,6 +24,7 @@
         :toggle="toggle"
         :is-expanded="isExpanded"
         :class-for="classFor"
+        :filter="filterString"
         @value-changed="onValueChanged"
       />
     </div>

@@ -13,3 +13,19 @@ export function getNodeValue(node) {
   }
   return value;
 }
+
+// Recursively check whether a node's own name or any descendant's name
+// contains `query` (already lowercased). Used for filtering the tree.
+export function nodeMatchesFilter(node, query) {
+  if (String(node.name).toLowerCase().includes(query)) {
+    return true;
+  }
+
+  const value = node.value;
+  if (value === null || typeof value !== "object") {
+    return false;
+  }
+
+  const children = Array.isArray(value) ? value : Object.values(value);
+  return children.some((child) => nodeMatchesFilter(child, query));
+}

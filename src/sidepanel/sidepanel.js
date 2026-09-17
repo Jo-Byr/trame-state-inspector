@@ -1,42 +1,72 @@
-import { createApp, shallowRef, h } from "vue";
+import { createApp, reactive, h } from "vue";
 import "vuetify/styles";
 import { createVuetify } from "vuetify";
 
 import StateDiffViewer from "../StateDiffViewer/index.vue";
+import StateStore from "../store/StateStore";
 
 import "./sidepanel.css";
 
 const vuetify = createVuetify();
 
-// Holds the latest diff message, fed by content.js relaying messages
-// from inject.js (which runs in the inspected page). shallowRef avoids
-// Vue auto-wrapping each incoming plain object in a reactive Proxy.
-const diff = shallowRef(null);
+let activeTabId = null;
+let myWindowId = null;
+
+function sendMessage(message) {
+  if (message.type === "TRAME_STATE_SET") {
+    message = { ...message, tabId: activeTabId };
+  }
+  chrome.runtime.sendMessage(message);
+}
+
+const store = reactive(new StateStore(sendMessage));
+
+function applyTabState({ tabId, state, lastDiff }) {
+  activeTabId = tabId;
+  store.load(state, lastDiff);
+}
+
+chrome.windows.getCurrent((w) => {
+  myWindowId = w?.id ?? null;
+
+  chrome.runtime.sendMessage(
+    { type: "GET_ACTIVE_TAB_STATE", windowId: myWindowId },
+    (response) => {
+      if (response) {
+        applyTabState(response);
+      }
+    }
+  );
+});
 
 chrome.runtime.onMessage.addListener((message) => {
-  if (message?.type === "TRAME_STATE_DIFF") {
-    if (!diff.value) {
-      console.log("[trame-state-inspector] sidepanel received first diff:", message.diff);
-    }
-    diff.value = message.diff;
+  switch (message.type) {
+    case "TRAME_STATE_DIFF":
+      // Content scripts also broadcast raw diffs; those have no tabId
+      // tag and are dropped here. Tagged forwards are applied only when
+      // they belong to the tab currently displayed.
+      if (message.tabId !== activeTabId) {
+        return;
+      }
+      store.applyDiff(message.diff);
+      break;
+
+    case "ACTIVE_TAB_CHANGED":
+      // A tab change in another window must not hijack this panel.
+      if (myWindowId != null && message.windowId !== myWindowId) {
+        return;
+      }
+      applyTabState(message);
+      break;
   }
 });
 
 const app = createApp({
-    components: {
-        StateDiffViewer
-    },
-    setup() {
-        // A string `template` here would need Vue's runtime compiler,
-        // which the default Vite build of "vue" doesn't include - it
-        // fails silently (console warning only) and renders nothing.
-        // h() works with the runtime-only build.
-        return () => h(StateDiffViewer, { diff: diff.value });
-    }
+  setup() {
+    return () => h(StateDiffViewer, { store });
+  },
 });
 
-app
-    .use(vuetify)
-    .mount("#app");
+app.use(vuetify).mount("#app");
 
-console.log("[trame-state-inspector] sidepanel mounted, waiting for state...");
+console.log("[trame-state-inspector] sidepanel mounted");

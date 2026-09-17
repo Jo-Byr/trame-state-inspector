@@ -59,7 +59,7 @@
     class="children"
   >
     <DiffNode
-      v-for="child in node.value"
+      v-for="child in visibleChildren"
       :key="child.id"
       :node="child"
       :depth="depth+1"
@@ -67,6 +67,7 @@
       :toggle="toggle"
       :is-expanded="isExpanded"
       :class-for="classFor"
+      :filter="filter"
       @value-changed="((v) => $emit('valueChanged', v))"
     />
   </div>
