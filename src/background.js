@@ -151,3 +151,7 @@ chrome.windows.onFocusChanged.addListener((windowId) => {
 chrome.tabs.onRemoved.addListener((tabId) => {
   tabStates.delete(tabId);
 });
+
+chrome.sidePanel
+  .setPanelBehavior({ openPanelOnActionClick: true })
+  .catch((error) => console.error(error));
